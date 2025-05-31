@@ -16,11 +16,22 @@ jobs:
         uses: actions/checkout@v4
       - name: Install packages
         run: | 
+          
+# اضافه کردن مخزن Zenora با اولویت بالا
+sudo sed -i '/^\[core\]/i [zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/$arch\n' /etc/pacman.conf
+
+# اضافه کردن مخزن ArchLinuxCN در انتها
+echo -e "\n[archlinuxcn]\nSigLevel = Never\nServer = https://repo.archlinuxcn.org/\$arch" | sudo tee -a /etc/pacman.conf
+
+# اضافه کردن مخزن BlackArch در انتها
+echo -e "\n[blackarch]\nSigLevel = Never\nServer = https://blackarch.org/blackarch/\$repo/os/\$arch" | sudo tee -a /etc/pacman.conf
+
+        
           pacman-key --init &&
           pacman-key --populate &&
           pacman -Sy --noconfirm archlinux-keyring &&
           pacman -Syu --noconfirm &&
-          pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip
+          pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip  zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update neofetch
       - name: Prepare environment
         run: |
           echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV &&
@@ -42,7 +53,6 @@ jobs:
           rm /mnt/sys-root/etc/machine-id &&
           touch /mnt/sys-root/etc/machine-id &&
           rm -rf /mnt/sys-root/var/cache/pacman/pkg/*
-           pacman -Syu --noconfirm zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update neofetch
       - name: Configure WSL installation profile
         run: |
           mkdir -p /mnt/sys-root/usr/lib/wsl &&
