@@ -9,7 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Build rootfs"
     container: 
-      image: archlinux/archlinux
+      image: zenoralinux/zenoralinux
       options: --privileged
     steps:
       - name: Checkout
