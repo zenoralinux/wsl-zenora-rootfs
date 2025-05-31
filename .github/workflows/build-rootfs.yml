@@ -28,7 +28,33 @@ jobs:
           mount --bind /mnt/sys-root-skeleton /mnt/sys-root &&
           wget -O target-pacman.conf https://gitlab.archlinux.org/archlinux/archiso/-/raw/master/configs/releng/pacman.conf
       - name: Initialize rootfs
-        run: pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
+        run: |
+          # Create custom pacman.conf with Zenora repo first
+          cat > zenora-pacman.conf <<EOF
+          [options]
+          HoldPkg     = pacman glibc
+          Architecture = auto
+          CheckSpace
+          SigLevel    = Required DatabaseOptional
+          LocalFileSigLevel = Optional
+
+          [zrepo]
+          SigLevel = Never
+          Server = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch
+
+          # Include standard repos
+          Include = /etc/pacman.d/mirrorlist
+
+          [archlinuxcn]
+          SigLevel = Never
+          Server = https://repo.archlinuxcn.org/\$arch
+
+          [blackarch]
+          SigLevel = Never
+          Server = https://blackarch.org/blackarch/\$repo/os/\$arch
+          EOF
+
+          pacstrap -G -M -C zenora-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update zrepo/neofetch
       - name: Configure
         run: |
           sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist &&
@@ -52,17 +78,16 @@ jobs:
           cp wsl-distribution.conf /mnt/sys-root/etc/wsl-distribution.conf
       - name: Package final rootfs
         run: |
-          tar -czf archlinux.wsl -C /mnt/sys-root ./
+          tar -czf zenora.wsl -C /mnt/sys-root ./
       - name: Generate sha256sums
         run: |
-          sha256sum archlinux.wsl > sha256sums
+          sha256sum zenora.wsl > sha256sums
       - name: Upload the final artifact
         uses: softprops/action-gh-release@v0.1.15
         with:
           tag_name: "${{ env.IMAGE_VERSION }}"
           files: |
-            archlinux.wsl
+            zenora.wsl
             sha256sums
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        
