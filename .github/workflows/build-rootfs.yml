@@ -51,7 +51,7 @@ jobs:
       - name: Configure WSL installation profile
         run: |
           mkdir -p /mnt/sys-root/usr/lib/wsl &&
-          cp arch.ico /mnt/sys-root/usr/lib/wsl/arch.ico &&
+          cp zenora.ico /mnt/sys-root/usr/lib/wsl/zenora.ico &&
           cp wsl-oobe.sh /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           chmod +x /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           cp wsl.conf /mnt/sys-root/etc/wsl.conf &&
