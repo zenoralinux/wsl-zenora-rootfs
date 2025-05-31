@@ -1,7 +1,5 @@
 #!/bin/bash
 
-#set -ue
-
 DEFAULT_GROUPS='adm,wheel,kvm,render,video'
 DEFAULT_UID='1000'
 
@@ -17,11 +15,8 @@ if getent passwd "$DEFAULT_UID" > /dev/null ; then
 fi
 
 while true; do
-
-  # Prompt from the username
   read -p 'Enter new UNIX username: ' username
 
-  # Create the user
   if /usr/sbin/useradd --uid "$DEFAULT_UID" -m "$username"; then
     passwd "$username"
     ret=$?
@@ -29,23 +24,31 @@ while true; do
       /usr/sbin/userdel -r "$username"
       continue
     fi
-    if /usr/sbin/usermod "$username" -aG "$DEFAULT_GROUPS"; then
-      break
-    else
-      /usr/sbin/userdel -r "$username"
-    fi
+
+    /usr/sbin/usermod "$username" -aG "$DEFAULT_GROUPS"
+
+    # ZSH default shell
+    chsh -s /bin/zsh "$username"
+
+    # Setup .zshrc for first login
+    echo '[[ -x $(command -v neofetch) ]] && neofetch' >> /home/$username/.zshrc
+    chown "$username:$username" /home/$username/.zshrc
+
+    break
   fi
 done
 
 echo ''
-
-printf '\e[0;36m[*]\e[0m Generating locales.\n'
+echo '[*] Generating locales...'
 /usr/bin/locale-gen
-printf '\e[0;36m[*]\e[0m Executing command "pacman-key --init"\n'
+
+echo '[*] Initializing pacman-key...'
 pacman-key --init
-printf '\e[0;36m[*]\e[0m Executing command "pacman-key --populate"\n'
+
+echo '[*] Populating pacman-key...'
 pacman-key --populate
-printf '\e[0;36m[*]\e[0m Updating Zenora configuration\n'
+
+echo '[*] Updating Zenora configuration...'
 zenora-conf-update
 
-printf '\e[0;92mDone! Your Zenora Linux on WSL installation is ready to use.\e[0m\n'
+echo -e '\e[0;92mDone! Your Zenora Linux on WSL installation is ready to use.\e[0m'
