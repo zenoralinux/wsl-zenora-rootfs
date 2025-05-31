@@ -16,16 +16,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Install packages
         run: | 
-          
-# اضافه کردن مخزن Zenora با اولویت بالا
-sudo sed -i '/^\[core\]/i [zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/$arch\n' /etc/pacman.conf
-
-# اضافه کردن مخزن ArchLinuxCN در انتها
-echo -e "\n[archlinuxcn]\nSigLevel = Never\nServer = https://repo.archlinuxcn.org/\$arch" | sudo tee -a /etc/pacman.conf
-
-# اضافه کردن مخزن BlackArch در انتها
-echo -e "\n[blackarch]\nSigLevel = Never\nServer = https://blackarch.org/blackarch/\$repo/os/\$arch" | sudo tee -a /etc/pacman.conf
-
+        
         
           pacman-key --init &&
           pacman-key --populate &&
