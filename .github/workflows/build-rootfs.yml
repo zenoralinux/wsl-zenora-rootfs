@@ -17,9 +17,10 @@ jobs:
       - name: Install packages
         run: | 
         
-        
           pacman-key --init &&
           pacman-key --populate &&
+            # Add Zenora repo to pacman.conf
+          echo -e "\n[zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch" >> /etc/pacman.conf &&
           pacman -Sy --noconfirm archlinux-keyring &&
           pacman -Syu --noconfirm &&
           pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip  zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update neofetch
