@@ -1,4 +1,4 @@
-name: Build rootfs
+name: Build Zenora Linux rootfs
 on:
   workflow_dispatch:
   schedule:
@@ -7,13 +7,14 @@ on:
 jobs:
   build-rootfs:
     runs-on: ubuntu-latest
-    name: "Build rootfs"
+    name: "Build Zenora Linux rootfs"
     container: 
       image: archlinux/archlinux
       options: --privileged
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      
       - name: Install packages
         run: | 
           pacman-key --init &&
@@ -21,17 +22,49 @@ jobs:
           pacman -Sy --noconfirm archlinux-keyring &&
           pacman -Syu --noconfirm &&
           pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip
+      
       - name: Prepare environment
         run: |
           echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV &&
           mkdir /mnt/sys-root-skeleton /mnt/sys-root &&
           mount --bind /mnt/sys-root-skeleton /mnt/sys-root &&
-          wget -O target-pacman.conf https://gitlab.archlinux.org/archlinux/archiso/-/raw/master/configs/releng/pacman.conf
+          cp /etc/pacman.conf ./zenora-pacman.conf &&
+          cat >> zenora-pacman.conf <<EOF
+
+          # Zenora Linux repositories
+          [zrepo]
+          SigLevel = Never
+          Server = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch
+
+          # Arch Linux CN
+          [archlinuxcn]
+          SigLevel = Never
+          Server = https://repo.archlinuxcn.org/\$arch
+
+          # BlackArch
+          [blackarch]
+          SigLevel = Never
+          Server = https://blackarch.org/blackarch/\$repo/os/\$arch
+          EOF
+      
       - name: Initialize rootfs
-        run: pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
-      - name: Configure
         run: |
+          pacstrap -G -M -C zenora-pacman.conf -K /mnt/sys-root \
+            base curl wget vim nano sudo texinfo man-db man-pages \
+            zenora-release zenora-fake-apt zenora-back \
+            zenora-zsh-config zenora-conf-update zrepo/neofetch
+      
+      - name: Configure system
+        run: |
+          # ایجاد و تنظیم mirrorlist
+          mkdir -p /mnt/sys-root/etc/pacman.d/
+          if [ ! -f /mnt/sys-root/etc/pacman.d/mirrorlist ]; then
+            curl -o /mnt/sys-root/etc/pacman.d/mirrorlist \
+              https://archlinux.org/mirrorlist/all/
+          fi
           sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist &&
+          
+          # سایر تنظیمات
           sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf &&
           sed -i -e 's/^#en_US.UTF-8/en_US.UTF-8/g' /mnt/sys-root/etc/locale.gen &&
           echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/sys-root/etc/sudoers.d/wheel &&
@@ -42,27 +75,30 @@ jobs:
           rm /mnt/sys-root/etc/machine-id &&
           touch /mnt/sys-root/etc/machine-id &&
           rm -rf /mnt/sys-root/var/cache/pacman/pkg/*
-      - name: Configure WSL installation profile
+      
+      - name: Configure WSL profile
         run: |
           mkdir -p /mnt/sys-root/usr/lib/wsl &&
-          cp arch.ico /mnt/sys-root/usr/lib/wsl/arch.ico &&
+          cp zenora.ico /mnt/sys-root/usr/lib/wsl/zenora.ico &&
           cp wsl-oobe.sh /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           chmod +x /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           cp wsl.conf /mnt/sys-root/etc/wsl.conf &&
           cp wsl-distribution.conf /mnt/sys-root/etc/wsl-distribution.conf
-      - name: Package final rootfs
+      
+      - name: Package rootfs
         run: |
-          tar -czf archlinux.wsl -C /mnt/sys-root ./
-      - name: Generate sha256sums
+          tar -czf zenora-linux-wsl-$(date +%Y%m%d).tar.gz -C /mnt/sys-root ./
+      
+      - name: Generate checksum
         run: |
-          sha256sum archlinux.wsl > sha256sums
-      - name: Upload the final artifact
+          sha256sum zenora-linux-wsl-$(date +%Y%m%d).tar.gz > sha256sums.txt
+      
+      - name: Upload artifact
         uses: softprops/action-gh-release@v0.1.15
         with:
-          tag_name: "${{ env.IMAGE_VERSION }}"
+          tag_name: "v$(date +%Y%m%d)"
           files: |
-            archlinux.wsl
-            sha256sums
+            zenora-linux-wsl-$(date +%Y%m%d).tar.gz
+            sha256sums.txt
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        
