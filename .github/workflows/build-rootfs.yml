@@ -1,4 +1,5 @@
 name: Build rootfs
+
 on:
   workflow_dispatch:
   schedule:
@@ -11,54 +12,77 @@ jobs:
     container: 
       image: archlinux/archlinux
       options: --privileged
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Install packages
+
+      - name: Prepare container environment
         run: | 
-        
-          pacman-key --init &&
-          pacman-key --populate &&
-            # Add Zenora repo to pacman.conf
-          echo -e "\n[zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch" >> /etc/pacman.conf &&
-          pacman -Sy --noconfirm archlinux-keyring &&
-          pacman -Syu --noconfirm &&
-          pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip  zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update neofetch
-      - name: Prepare environment
+          pacman-key --init
+          pacman-key --populate
+          echo -e "\n[zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch" >> /etc/pacman.conf
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip
+
+      - name: Set image version and prepare rootfs
         run: |
-          echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV &&
-          mkdir /mnt/sys-root-skeleton /mnt/sys-root &&
-          mount --bind /mnt/sys-root-skeleton /mnt/sys-root &&
+          echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
+          mkdir /mnt/sys-root-skeleton /mnt/sys-root
+          mount --bind /mnt/sys-root-skeleton /mnt/sys-root
           wget -O target-pacman.conf https://raw.githubusercontent.com/zenoralinux/wsl-zenora-rootfs/refs/heads/main/pacman.conf
-      - name: Initialize rootfs
-        run: pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
-      - name: Configure
+
+      - name: Initialize rootfs base system
         run: |
-          sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist &&
-          sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf &&
-          sed -i -e 's/^#en_US.UTF-8/en_US.UTF-8/g' /mnt/sys-root/etc/locale.gen &&
-          echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/sys-root/etc/sudoers.d/wheel &&
-          echo "tmpfs /tmp tmpfs mode=1777,strictatime,nosuid,nodev,size=50%,nr_inodes=1m 0 0" >> /mnt/sys-root/etc/fstab &&
-          arch-chroot /mnt/sys-root /usr/sbin/systemctl mask systemd-binfmt.service systemd-resolved.service systemd-networkd.service tmp.mount &&
-          rm -rf /mnt/sys-root/etc/pacman.d/gnupg &&
-          rm -rf /mnt/sys-root/var/lib/pacman/sync/ &&
-          rm /mnt/sys-root/etc/machine-id &&
-          touch /mnt/sys-root/etc/machine-id &&
+          pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
+
+      - name: Configure rootfs (mirror, locale, sudo, services)
+        run: |
+          sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist
+          sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf
+          sed -i -e 's/^#en_US.UTF-8/en_US.UTF-8/g' /mnt/sys-root/etc/locale.gen
+          echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/sys-root/etc/sudoers.d/wheel
+          echo "tmpfs /tmp tmpfs mode=1777,strictatime,nosuid,nodev,size=50%,nr_inodes=1m 0 0" >> /mnt/sys-root/etc/fstab
+          arch-chroot /mnt/sys-root locale-gen
+          arch-chroot /mnt/sys-root systemctl mask systemd-binfmt.service systemd-resolved.service systemd-networkd.service tmp.mount
+          rm -rf /mnt/sys-root/etc/pacman.d/gnupg
+          rm -rf /mnt/sys-root/var/lib/pacman/sync/
+          rm -f /mnt/sys-root/etc/machine-id
+          touch /mnt/sys-root/etc/machine-id
           rm -rf /mnt/sys-root/var/cache/pacman/pkg/*
-      - name: Configure WSL installation profile
+
+      - name: Copy pacman.conf & install Zenora packages inside chroot
         run: |
-          mkdir -p /mnt/sys-root/usr/lib/wsl &&
-          cp zenora.ico /mnt/sys-root/usr/lib/wsl/zenora.ico &&
-          cp wsl-oobe.sh /mnt/sys-root/usr/lib/wsl/oobe.sh &&
-          chmod +x /mnt/sys-root/usr/lib/wsl/oobe.sh &&
-          cp wsl.conf /mnt/sys-root/etc/wsl.conf &&
+          cp /etc/pacman.conf /mnt/sys-root/etc/pacman.conf
+          cp -r /etc/pacman.d /mnt/sys-root/etc/
+          arch-chroot /mnt/sys-root pacman -Sy --noconfirm
+          arch-chroot /mnt/sys-root pacman -S --noconfirm \
+            zenora-release \
+            zenora-fake-apt \
+            zenora-back \
+            zenora-zsh-config \
+            zenora-conf-update \
+            neofetch \
+            zsh
+
+      - name: Configure WSL integration
+        run: |
+          mkdir -p /mnt/sys-root/usr/lib/wsl
+          cp zenora.ico /mnt/sys-root/usr/lib/wsl/zenora.ico
+          cp wsl-oobe.sh /mnt/sys-root/usr/lib/wsl/oobe.sh
+          chmod +x /mnt/sys-root/usr/lib/wsl/oobe.sh
+          cp wsl.conf /mnt/sys-root/etc/wsl.conf
           cp wsl-distribution.conf /mnt/sys-root/etc/wsl-distribution.conf
+
       - name: Package final rootfs
         run: |
           tar -czf zenora.wsl -C /mnt/sys-root ./
+
       - name: Generate sha256sums
         run: |
           sha256sum zenora.wsl > sha256sums
+
       - name: Upload the final artifact
         uses: softprops/action-gh-release@v0.1.15
         with:
@@ -68,4 +92,3 @@ jobs:
             sha256sums
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
-        
