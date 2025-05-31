@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '24 7 1 * *'
- 
+
 jobs:
   build-rootfs:
     runs-on: ubuntu-latest
@@ -25,64 +25,15 @@ jobs:
         run: |
           echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV &&
           mkdir /mnt/sys-root-skeleton /mnt/sys-root &&
-          mount --bind /mnt/sys-root-skeleton /mnt/sys-root
-      - name: Create custom pacman.conf
+          mount --bind /mnt/sys-root-skeleton /mnt/sys-root &&
+          wget -O target-pacman.conf https://raw.githubusercontent.com/zenoralinux/wsl-zenora-rootfs/refs/heads/main/pacman.conf
+      - name: Initialize rootfs
+        run: pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
+      - name: Configure
         run: |
-          cat > /mnt/sys-root/etc/pacman.conf <<EOF
-[options]
-HoldPkg     = pacman glibc
-Architecture = auto
-Color
-CheckSpace
-ParallelDownloads = 5
-SigLevel    = Never
-LocalFileSigLevel = Optional
-
-[zrepo]
-SigLevel = Never
-Server = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch
-
-[core]
-Include = /etc/pacman.d/mirrorlist
-
-[extra]
-Include = /etc/pacman.d/mirrorlist
-
-[community]
-Include = /etc/pacman.d/mirrorlist
-
-[archlinuxcn]
-SigLevel = Never
-Server = https://repo.archlinuxcn.org/\$arch
-
-[blackarch]
-SigLevel = Never
-Server = https://blackarch.org/blackarch/\$repo/os/\$arch
-EOF
-      - name: Initialize rootfs with base packages
-        run: |
-          pacstrap -G -M -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
-      - name: Configure Zenora repositories
-        run: |
-          # Create mirrorlist
-          echo "Server = https://mirrors.kernel.org/archlinux/\$repo/os/\$arch" > /mnt/sys-root/etc/pacman.d/mirrorlist
-          
-          # Update package database
-          arch-chroot /mnt/sys-root pacman -Sy --noconfirm
-      - name: Install Zenora specific packages
-        run: |
-          arch-chroot /mnt/sys-root pacman -S --noconfirm \
-            zenora-release \
-            zenora-fake-apt \
-            zenora-back \
-            zenora-zsh-config \
-            zenora-conf-update \
-            neofetch
-      - name: Configure system
-        run: |
+          sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist &&
+          sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf &&
           sed -i -e 's/^#en_US.UTF-8/en_US.UTF-8/g' /mnt/sys-root/etc/locale.gen &&
-          echo "LANG=en_US.UTF-8" > /mnt/sys-root/etc/locale.conf &&
-          arch-chroot /mnt/sys-root locale-gen &&
           echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/sys-root/etc/sudoers.d/wheel &&
           echo "tmpfs /tmp tmpfs mode=1777,strictatime,nosuid,nodev,size=50%,nr_inodes=1m 0 0" >> /mnt/sys-root/etc/fstab &&
           arch-chroot /mnt/sys-root /usr/sbin/systemctl mask systemd-binfmt.service systemd-resolved.service systemd-networkd.service tmp.mount &&
@@ -91,10 +42,11 @@ EOF
           rm /mnt/sys-root/etc/machine-id &&
           touch /mnt/sys-root/etc/machine-id &&
           rm -rf /mnt/sys-root/var/cache/pacman/pkg/*
+           pacman -Syu --noconfirm zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update neofetch
       - name: Configure WSL installation profile
         run: |
           mkdir -p /mnt/sys-root/usr/lib/wsl &&
-          cp arch.ico /mnt/sys-root/usr/lib/wsl/arch.ico &&
+          cp zenora.ico /mnt/sys-root/usr/lib/wsl/zenora.ico &&
           cp wsl-oobe.sh /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           chmod +x /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           cp wsl.conf /mnt/sys-root/etc/wsl.conf &&
@@ -114,3 +66,4 @@ EOF
             sha256sums
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        
