@@ -25,24 +25,49 @@ jobs:
         run: |
           echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV &&
           mkdir /mnt/sys-root-skeleton /mnt/sys-root &&
-          mount --bind /mnt/sys-root-skeleton /mnt/sys-root &&
-          wget -O target-pacman.conf https://gitlab.archlinux.org/archlinux/archiso/-/raw/master/configs/releng/pacman.conf
-      - name: Modify pacman.conf for Zenora
+          mount --bind /mnt/sys-root-skeleton /mnt/sys-root
+      - name: Create custom pacman.conf
         run: |
-          # Add Zenora repo as first priority
-          sed -i '/^\[core\]/i [zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/$arch\n' target-pacman.conf
-          
-          # Add other repos at the end
-          echo -e "\n[archlinuxcn]\nSigLevel = Never\nServer = https://repo.archlinuxcn.org/\$arch\n\n[blackarch]\nSigLevel = Never\nServer = https://blackarch.org/blackarch/\$repo/os/\$arch" >> target-pacman.conf
+          cat > /mnt/sys-root/etc/pacman.conf <<EOF
+[options]
+HoldPkg     = pacman glibc
+Architecture = auto
+Color
+CheckSpace
+ParallelDownloads = 5
+SigLevel    = Never
+LocalFileSigLevel = Optional
+
+[zrepo]
+SigLevel = Never
+Server = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch
+
+[core]
+Include = /etc/pacman.d/mirrorlist
+
+[extra]
+Include = /etc/pacman.d/mirrorlist
+
+[community]
+Include = /etc/pacman.d/mirrorlist
+
+[archlinuxcn]
+SigLevel = Never
+Server = https://repo.archlinuxcn.org/\$arch
+
+[blackarch]
+SigLevel = Never
+Server = https://blackarch.org/blackarch/\$repo/os/\$arch
+EOF
       - name: Initialize rootfs with base packages
         run: |
-          pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
-      - name: Configure Zenora repositories in target
+          pacstrap -G -M -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
+      - name: Configure Zenora repositories
         run: |
-          # Copy the modified pacman.conf to target
-          cp target-pacman.conf /mnt/sys-root/etc/pacman.conf
+          # Create mirrorlist
+          echo "Server = https://mirrors.kernel.org/archlinux/\$repo/os/\$arch" > /mnt/sys-root/etc/pacman.d/mirrorlist
           
-          # Update package database in target
+          # Update package database
           arch-chroot /mnt/sys-root pacman -Sy --noconfirm
       - name: Install Zenora specific packages
         run: |
@@ -53,11 +78,11 @@ jobs:
             zenora-zsh-config \
             zenora-conf-update \
             neofetch
-      - name: Configure
+      - name: Configure system
         run: |
-          sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist &&
-          sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf &&
           sed -i -e 's/^#en_US.UTF-8/en_US.UTF-8/g' /mnt/sys-root/etc/locale.gen &&
+          echo "LANG=en_US.UTF-8" > /mnt/sys-root/etc/locale.conf &&
+          arch-chroot /mnt/sys-root locale-gen &&
           echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/sys-root/etc/sudoers.d/wheel &&
           echo "tmpfs /tmp tmpfs mode=1777,strictatime,nosuid,nodev,size=50%,nr_inodes=1m 0 0" >> /mnt/sys-root/etc/fstab &&
           arch-chroot /mnt/sys-root /usr/sbin/systemctl mask systemd-binfmt.service systemd-resolved.service systemd-networkd.service tmp.mount &&
@@ -69,7 +94,7 @@ jobs:
       - name: Configure WSL installation profile
         run: |
           mkdir -p /mnt/sys-root/usr/lib/wsl &&
-          cp zenora.ico /mnt/sys-root/usr/lib/wsl/zenora.ico &&
+          cp arch.ico /mnt/sys-root/usr/lib/wsl/arch.ico &&
           cp wsl-oobe.sh /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           chmod +x /mnt/sys-root/usr/lib/wsl/oobe.sh &&
           cp wsl.conf /mnt/sys-root/etc/wsl.conf &&
