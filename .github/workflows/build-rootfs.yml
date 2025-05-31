@@ -29,12 +29,30 @@ jobs:
           wget -O target-pacman.conf https://gitlab.archlinux.org/archlinux/archiso/-/raw/master/configs/releng/pacman.conf
       - name: Modify pacman.conf for Zenora
         run: |
-          sed -i '/^\[core\]/i [zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/$arch\n' target-pacman.conf &&
-          sed -i '$a [archlinuxcn]\nSigLevel = Never\nServer = https://repo.archlinuxcn.org/$arch\n\n[blackarch]\nSigLevel = Never\nServer = https://blackarch.org/blackarch/$repo/os/$arch' target-pacman.conf
-      - name: Initialize rootfs
+          # Add Zenora repo as first priority
+          sed -i '/^\[core\]/i [zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/$arch\n' target-pacman.conf
+          
+          # Add other repos at the end
+          echo -e "\n[archlinuxcn]\nSigLevel = Never\nServer = https://repo.archlinuxcn.org/\$arch\n\n[blackarch]\nSigLevel = Never\nServer = https://blackarch.org/blackarch/\$repo/os/\$arch" >> target-pacman.conf
+      - name: Initialize rootfs with base packages
         run: |
-          pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages &&
-          arch-chroot /mnt/sys-root pacman -S --noconfirm zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update zrepo/neofetch
+          pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
+      - name: Configure Zenora repositories in target
+        run: |
+          # Copy the modified pacman.conf to target
+          cp target-pacman.conf /mnt/sys-root/etc/pacman.conf
+          
+          # Update package database in target
+          arch-chroot /mnt/sys-root pacman -Sy --noconfirm
+      - name: Install Zenora specific packages
+        run: |
+          arch-chroot /mnt/sys-root pacman -S --noconfirm \
+            zenora-release \
+            zenora-fake-apt \
+            zenora-back \
+            zenora-zsh-config \
+            zenora-conf-update \
+            neofetch
       - name: Configure
         run: |
           sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist &&
