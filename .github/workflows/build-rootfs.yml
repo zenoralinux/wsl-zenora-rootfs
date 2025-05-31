@@ -17,54 +17,42 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Prepare container environment
+      - name: Install packages
         run: | 
           pacman-key --init
           pacman-key --populate
           echo -e "\n[zrepo]\nSigLevel = Never\nServer = https://codeberg.org/zenoralinux/zenora-repo/media/branch/main/\$arch" >> /etc/pacman.conf
           pacman -Sy --noconfirm archlinux-keyring
           pacman -Syu --noconfirm
-          pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip
+          pacman -S --noconfirm arch-install-scripts wget curl base-devel zip unzip \
+            zenora-release zenora-fake-apt zenora-back zenora-zsh-config zenora-conf-update \
+            neofetch zsh sudo vim nano texinfo man-db man-pages \
+            ttf-jetbrains-mono-nerd ttf-dejavu ttf-liberation
 
-      - name: Set image version and prepare rootfs
+      - name: Prepare environment
         run: |
           echo "IMAGE_VERSION=$(date +%Y%m%d-%H%M)" >> $GITHUB_ENV
           mkdir /mnt/sys-root-skeleton /mnt/sys-root
           mount --bind /mnt/sys-root-skeleton /mnt/sys-root
           wget -O target-pacman.conf https://raw.githubusercontent.com/zenoralinux/wsl-zenora-rootfs/refs/heads/main/pacman.conf
 
-      - name: Initialize rootfs base system
+      - name: Initialize rootfs
         run: |
-          pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages
+          pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages zsh
 
-      - name: Configure rootfs (mirror, locale, sudo, services)
+      - name: Configure system
         run: |
-          sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist
-          sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf
-          sed -i -e 's/^#en_US.UTF-8/en_US.UTF-8/g' /mnt/sys-root/etc/locale.gen
+          sed -i 's/^#Server/Server/' /mnt/sys-root/etc/pacman.d/mirrorlist
+          sed -i -e 's/^#Color/Color/' -e 's/^#ParallelDownloads/ParallelDownloads/' /mnt/sys-root/etc/pacman.conf
+          sed -i 's/^#en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /mnt/sys-root/etc/locale.gen
           echo "%wheel ALL=(ALL:ALL) ALL" > /mnt/sys-root/etc/sudoers.d/wheel
           echo "tmpfs /tmp tmpfs mode=1777,strictatime,nosuid,nodev,size=50%,nr_inodes=1m 0 0" >> /mnt/sys-root/etc/fstab
           arch-chroot /mnt/sys-root locale-gen
           arch-chroot /mnt/sys-root systemctl mask systemd-binfmt.service systemd-resolved.service systemd-networkd.service tmp.mount
-          rm -rf /mnt/sys-root/etc/pacman.d/gnupg
-          rm -rf /mnt/sys-root/var/lib/pacman/sync/
+          rm -rf /mnt/sys-root/etc/pacman.d/gnupg /mnt/sys-root/var/lib/pacman/sync/
           rm -f /mnt/sys-root/etc/machine-id
           touch /mnt/sys-root/etc/machine-id
           rm -rf /mnt/sys-root/var/cache/pacman/pkg/*
-
-      - name: Copy pacman.conf & install Zenora packages inside chroot
-        run: |
-          cp /etc/pacman.conf /mnt/sys-root/etc/pacman.conf
-          cp -r /etc/pacman.d /mnt/sys-root/etc/
-          arch-chroot /mnt/sys-root pacman -Sy --noconfirm
-          arch-chroot /mnt/sys-root pacman -S --noconfirm \
-            zenora-release \
-            zenora-fake-apt \
-            zenora-back \
-            zenora-zsh-config \
-            zenora-conf-update \
-            neofetch \
-            zsh
 
       - name: Configure WSL integration
         run: |
@@ -75,13 +63,20 @@ jobs:
           cp wsl.conf /mnt/sys-root/etc/wsl.conf
           cp wsl-distribution.conf /mnt/sys-root/etc/wsl-distribution.conf
 
+      - name: Create user and apply zsh config
+        run: |
+          arch-chroot /mnt/sys-root useradd -m -G wheel -s /bin/zsh zenora
+          echo "zenora:zenora" | arch-chroot /mnt/sys-root chpasswd
+          arch-chroot /mnt/sys-root cp -r /etc/skel/. /home/zenora/
+          arch-chroot /mnt/sys-root chown -R zenora:zenora /home/zenora
+          arch-chroot /mnt/sys-root fc-cache -fv
+
       - name: Package final rootfs
         run: |
           tar -czf zenora.wsl -C /mnt/sys-root ./
 
       - name: Generate sha256sums
-        run: |
-          sha256sum zenora.wsl > sha256sums
+        run: sha256sum zenora.wsl > sha256sums
 
       - name: Upload the final artifact
         uses: softprops/action-gh-release@v0.1.15
@@ -91,4 +86,4 @@ jobs:
             zenora.wsl
             sha256sums
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
