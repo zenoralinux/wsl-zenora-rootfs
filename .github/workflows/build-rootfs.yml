@@ -75,6 +75,7 @@ jobs:
           sed -i 's|^root:.*:bash|root:*:*:/bin/zsh|' /mnt/sys-root/etc/passwd
           cp /mnt/sys-root/etc/skel/.bashrc /mnt/sys-root/etc/skel/.zshrc 2>/dev/null || true
           touch /mnt/sys-root/etc/skel/.zshrc
+          touch /mnt/sys-root/home/zenora/.zshrc
 
       - name: Install Zenora packages
         run: |
@@ -89,7 +90,6 @@ jobs:
             zenora-conf-update \
             neofetch \
             zsh
-            touch /home/zenora/.zshrc
             
       - name: Configure WSL integration
         run: |
