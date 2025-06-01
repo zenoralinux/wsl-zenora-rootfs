@@ -89,7 +89,8 @@ jobs:
             zenora-conf-update \
             neofetch \
             zsh
-
+            touch /home/zenora/.zshrc
+            
       - name: Configure WSL integration
         run: |
           mkdir -p /mnt/sys-root/usr/lib/wsl
