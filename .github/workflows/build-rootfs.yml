@@ -9,7 +9,7 @@ jobs:
   build-rootfs:
     runs-on: ubuntu-latest
     name: "Build rootfs"
-    container: 
+    container:
       image: archlinux/archlinux
       options: --privileged
 
@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare container environment
-        run: | 
+        run: |
           pacman-key --init
           pacman-key --populate
           pacman -Sy --noconfirm archlinux-keyring
@@ -45,10 +45,14 @@ jobs:
             echo -e "\n[blackarch]\nSigLevel = Never\nServer = https://blackarch.org/blackarch/\$repo/os/\$arch" >> target-pacman.conf
 
       - name: Initialize rootfs base system
+        env:
+          PACMAN_IGNORE_LANDLOCK: 1
         run: |
           pacstrap -G -M -C target-pacman.conf -K /mnt/sys-root base curl wget vim nano sudo texinfo man-db man-pages zsh
 
-      - name: Configure rootfs (mirror, locale, sudo, services)
+      - name: Configure rootfs (mirror, locale, sudo, services, users, shell)
+        env:
+          PACMAN_IGNORE_LANDLOCK: 1
         run: |
           sed -i -e 's/^#Server/Server/g' /mnt/sys-root/etc/pacman.d/mirrorlist
           sed -i -e 's/^#Color/Color/g' -e 's/^#ParallelDownloads/ParallelDownloads/g' /mnt/sys-root/etc/pacman.conf
@@ -63,11 +67,26 @@ jobs:
           touch /mnt/sys-root/etc/machine-id
           rm -rf /mnt/sys-root/var/cache/pacman/pkg/*
 
-          # ایجاد یوزر zenora با پسورد zenora و شل zsh و اضافه کردن به گروه wheel برای sudo
+          # Set default shell for all new users to /bin/zsh
+          sed -i '/^SHELL=/d' /mnt/sys-root/etc/default/useradd
+          echo 'SHELL=/bin/zsh' >> /mnt/sys-root/etc/default/useradd
+
+          # Create user zenora with zsh and sudo access
           arch-chroot /mnt/sys-root useradd -m -G wheel -s /bin/zsh zenora
           echo "zenora:zenora" | arch-chroot /mnt/sys-root chpasswd
 
+          # Set shell to zsh for root user in /etc/passwd
+          arch-chroot /mnt/sys-root sed -i 's|^root:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:/bin/bash|root:x:0:0:root:/root:/bin/zsh|' /etc/passwd
+
+          # Set shell to zsh for zenora user (in case)
+          arch-chroot /mnt/sys-root sed -i 's|^zenora:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:/bin/bash|zenora:x:1000:100::/home/zenora:/bin/zsh|' /etc/passwd
+
+          # Set root password (optional, here 'zenora123')
+          echo "root:zenora123" | arch-chroot /mnt/sys-root chpasswd
+
       - name: Copy pacman.conf & install Zenora packages inside chroot
+        env:
+          PACMAN_IGNORE_LANDLOCK: 1
         run: |
           cp target-pacman.conf /mnt/sys-root/etc/pacman.conf
           cp -r /etc/pacman.d /mnt/sys-root/etc/
