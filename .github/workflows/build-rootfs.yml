@@ -76,7 +76,7 @@ jobs:
           cp /mnt/sys-root/etc/skel/.bashrc /mnt/sys-root/etc/skel/.zshrc 2>/dev/null || true
           touch /mnt/sys-root/etc/skel/.zshrc
           touch /mnt/sys-root/home/zenora/.zshrc
-
+          chown $zenora:$zenora /mnt/sys-root/home/zenora/.zshrc
       - name: Install Zenora packages
         run: |
           cp /etc/pacman.conf /mnt/sys-root/etc/pacman.conf
