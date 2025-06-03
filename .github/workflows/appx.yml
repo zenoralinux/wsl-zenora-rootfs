@@ -1,67 +1,50 @@
 name: Build Zenora WSL Appx
 
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
+
+env:
+  CONFIGURATION: Release
+  ROOTFS_URL: https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz
 
 jobs:
   build:
     runs-on: windows-latest
 
-    env:
-      DISTRO_NAME: Zenora
-      EXE_NAME: launcher.exe
-      CONFIGURATION: Release
-      ROOTFS_URL: https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz
-
     steps:
-      - name: Checkout this repo (for custom assets)
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
 
-      - name: Install MSBuild
-        uses: microsoft/setup-msbuild@v1.3.1
+    - name: Clone DistroLauncher
+      run: git clone https://github.com/microsoft/WSL-DistroLauncher.git
 
-      - name: Clone WSL-DistroLauncher
-        run: |
-          git clone https://github.com/microsoft/WSL-DistroLauncher.git
-          Rename-Item -Path "WSL-DistroLauncher" -NewName "DistroLauncher"
+    - name: Download rootfs
+      run: |
+        New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx" -Force
+        Invoke-WebRequest -Uri $env:ROOTFS_URL -OutFile "DistroLauncher\DistroLauncher-Appx\install.tar.gz"
 
-      - name: Prepare Appx directory and download rootfs
-        run: |
-          New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx" -Force
-          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\DistroLauncher-Appx\install.tar.gz"
+    - name: Retarget to available Windows SDK
+      run: |
+        $proj = "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj"
+        (Get-Content $proj) -replace '10.0.16299.0', '10.0.19041.0' | Set-Content $proj
 
-      - name: Copy custom AppxManifest and logo if exist
-        run: |
-          if (Test-Path "AppxManifest.xml") {
-            Copy-Item "AppxManifest.xml" -Destination "DistroLauncher\DistroLauncher-Appx\AppxManifest.xml" -Force
-          }
-          if (Test-Path "logo.png") {
-            New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx\assets" -Force
-            Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
-          }
+    - name: Build launcher.exe
+      working-directory: ./DistroLauncher
+      run: |
+        msbuild DistroLauncher.sln /p:Configuration=$env:CONFIGURATION /p:Platform=x64
 
-      - name: Build launcher.exe
-        working-directory: ./DistroLauncher
-        run: msbuild DistroLauncher.sln /p:Configuration=$env:CONFIGURATION /p:Platform=x64
+    - name: Create appx package
+      run: |
+        $appxDir = "DistroLauncher\DistroLauncher-Appx"
+        $outputAppx = "ZenoraWSL.appx"
+        & "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.19041.0\x64\makeappx.exe" pack `
+          /d $appxDir `
+          /p $outputAppx
 
-      - name: Copy launcher to Appx directory
-        run: Copy-Item "DistroLauncher\x64\$env:CONFIGURATION\launcher.exe" -Destination "DistroLauncher\DistroLauncher-Appx\"
-
-      - name: Stage Appx files
-        run: |
-          mkdir AppxStage
-          Copy-Item -Recurse "DistroLauncher\DistroLauncher-Appx\*" AppxStage
-
-      - name: Generate PRI file
-        run: |
-          makepri new /ProjectRoot AppxStage /ConfigXml AppxStage\AppxManifest.xml /OutputFile AppxStage\resources.pri
-
-      - name: Build .appx
-        run: |
-          makeappx pack /d AppxStage /p Zenora.appx
-
-      - name: Upload Appx
-        uses: actions/upload-artifact@v4
-        with:
-          name: zenora-appx
-          path: Zenora.appx
+    - name: Upload appx artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: zenora-wsl-appx
+        path: ZenoraWSL.appx
