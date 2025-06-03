@@ -40,17 +40,19 @@ jobs:
             Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
           }
       - name: Retarget Windows SDK to available version
+        shell: pwsh
         run: |
-         $sdkVersion = '10.0.19041.0'
-         $projects = @(
-         "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
-         "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
-          )
-         foreach ($proj in $projects) {
-         (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
-          }
-          shell: pwsh
+          $sdkVersion = '10.0.19041.0'
+          $projects = @(
+          "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+          "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+           )
+           foreach ($proj in $projects) {
+           (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
+             }
+
       - name: Build launcher.exe
+        shell: pwsh
         working-directory: ./DistroLauncher
         run: msbuild DistroLauncher.sln /p:Configuration=$env:CONFIGURATION /p:Platform=x64
 
