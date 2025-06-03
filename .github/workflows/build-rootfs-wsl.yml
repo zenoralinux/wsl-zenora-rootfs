@@ -109,8 +109,7 @@ jobs:
          tar --numeric-owner -czf zenora-wsl-rootfs.tar.gz -C /mnt/sys-root ./
       - name: Generate sha256sums
         run: |
-          sha256sum zenora.wsl > sha256sums
-          sha256sum zenora-wsl-rootfs.tar.gz > sha256sums
+          sha256sum zenora.wsl zenora-wsl-rootfs.tar.gz > sha256sums
 
       - name: Upload artifact
         uses: softprops/action-gh-release@v0.1.15
