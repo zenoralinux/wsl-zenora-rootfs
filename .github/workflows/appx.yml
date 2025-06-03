@@ -39,11 +39,17 @@ jobs:
             New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx\assets" -Force
             Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
           }
-      - name: Retarget to available Windows SDK
-        run: |
-          $proj = "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj"
-          (Get-Content $proj) -replace '10.0.16299.0', '10.0.19041.0' | Set-Content $proj
-
+- name: Retarget Windows SDK to available version
+  run: |
+    $sdkVersion = '10.0.19041.0'
+    $projects = @(
+      "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+      "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+    )
+    foreach ($proj in $projects) {
+      (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
+    }
+  shell: pwsh
       - name: Build launcher.exe
         working-directory: ./DistroLauncher
         run: msbuild DistroLauncher.sln /p:Configuration=$env:CONFIGURATION /p:Platform=x64
