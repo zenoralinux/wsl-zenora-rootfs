@@ -104,10 +104,15 @@ jobs:
         run: |
           rm -f /mnt/sys-root/usr/lib/wsl/libnvoptix_loader.so.1
           tar -czf zenora.wsl -C /mnt/sys-root ./
+      - name: Create tar.gz rootfs
+        run: |
+         cd rootfs
+         tar --numeric-owner -czf ../zenora-wsl-rootfs.tar.gz .
 
       - name: Generate sha256sums
         run: |
           sha256sum zenora.wsl > sha256sums
+          sha256sum zenora-wsl-rootfs.tar.gz > sha256sums
 
       - name: Upload artifact
         uses: softprops/action-gh-release@v0.1.15
@@ -116,5 +121,7 @@ jobs:
           files: |
             zenora.wsl
             sha256sums
+            zenora-wsl-rootfs.tar.gz
+            
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
