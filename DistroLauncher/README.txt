@@ -1,1 +1,0 @@
-Build using Visual Studio and Microsoft WSL-DistroLauncher base.
