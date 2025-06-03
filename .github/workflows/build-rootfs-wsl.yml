@@ -106,7 +106,7 @@ jobs:
           tar --numeric-owner -czf zenora.wsl -C /mnt/sys-root ./
       - name: Create tar.gz rootfs
         run: |
-         tar --numeric-owner -czf ../zenora-wsl-rootfs.tar.gz .
+         tar --numeric-owner -czf zenora-wsl-rootfs.tar.gz -C /mnt/sys-root ./
       - name: Generate sha256sums
         run: |
           sha256sum zenora.wsl > sha256sums
