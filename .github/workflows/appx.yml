@@ -9,109 +9,78 @@ jobs:
 
     env:
       DISTRO_NAME: Zenora
-      EXE_NAME: launcher.exe
       CONFIGURATION: Release
       ROOTFS_URL: https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz
       CERT_PASSWORD: 1234
 
     steps:
-      - name: Checkout this repo (for custom assets)
+      - name: Checkout this repo
         uses: actions/checkout@v3
 
-      - name: Install MSBuild
+      - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.3.1
 
-      - name: Clone WSL-DistroLauncher
-        run: |
-          git clone https://github.com/microsoft/WSL-DistroLauncher.git
-          Rename-Item -Path "WSL-DistroLauncher" -NewName "DistroLauncher"
-
-      - name: Prepare Appx directory and download rootfs
-        run: |
-          New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx" -Force
-          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\DistroLauncher-Appx\install.tar.gz"
-          New-Item -ItemType Directory -Path "DistroLauncher\x64" -Force
-          Copy-Item "DistroLauncher\DistroLauncher-Appx\install.tar.gz" -Destination "DistroLauncher\x64\install.tar.gz"
-
-      - name: Copy custom AppxManifest and logo if exist
-        run: |
-          if (Test-Path "AppxManifest.xml") {
-            Copy-Item "AppxManifest.xml" -Destination "DistroLauncher\DistroLauncher-Appx\AppxManifest.xml" -Force
-          }
-          if (Test-Path "logo.png") {
-            New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx\assets" -Force
-            Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
-          }
-
-      - name: Retarget Windows SDK to available version
+      - name: Download and prepare WSL DistroLauncher
         shell: pwsh
         run: |
-          $sdkVersion = '10.0.19041.0'
-          $projects = @(
-            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
-            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
-          )
-          foreach ($proj in $projects) {
-            (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
-          }
+          git clone https://github.com/microsoft/WSL-DistroLauncher.git DistroLauncher
+          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher/DistroLauncher-Appx/install.tar.gz"
 
-      - name: Patch PlatformToolset from v141 to v143
+      - name: Patch project files for toolset and SDK
         shell: pwsh
         run: |
           $projects = @(
-            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
-            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+            "DistroLauncher/DistroLauncher/DistroLauncher.vcxproj",
+            "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
           )
           foreach ($proj in $projects) {
-            (Get-Content $proj) -replace 'v141', 'v143' | Set-Content $proj
-          }
-
-      - name: Inject certificate settings into project
-        shell: pwsh
-        run: |
-          $vcxproj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
-          $content = Get-Content $vcxproj
-          $injection = @"
-  <PropertyGroup>
-    <PackageCertificateKeyFile>Zenora_TemporaryKey.pfx</PackageCertificateKeyFile>
-    <PackageCertificatePassword>$env:CERT_PASSWORD</PackageCertificatePassword>
-  </PropertyGroup>
-"@
-          if ($content -notmatch "PackageCertificateKeyFile") {
-            $content = $content -replace '(?<=</Import>)', "`n$injection"
-            $content | Set-Content $vcxproj
+            (Get-Content $proj) -replace 'v141', 'v143' -replace '10\.0\.16299\.0', '10.0.19041.0' | Set-Content $proj
           }
 
       - name: Generate temporary signing certificate
         shell: pwsh
         run: |
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Zenora" -CertStoreLocation "Cert:\CurrentUser\My"
-          $securePassword = ConvertTo-SecureString -String "$env:CERT_PASSWORD" -Force -AsPlainText
-          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher\DistroLauncher-Appx\Zenora_TemporaryKey.pfx" -Password $securePassword
+          $secure = ConvertTo-SecureString -String $env:CERT_PASSWORD -AsPlainText -Force
+          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher/DistroLauncher-Appx/Zenora.pfx" -Password $secure
 
-      - name: Build launcher.exe
+      - name: Inject signing config into project file
         shell: pwsh
-        working-directory: ./DistroLauncher
-        run: msbuild DistroLauncher.sln /p:Configuration=$env:CONFIGURATION /p:Platform=x64
+        run: |
+          $projPath = "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
+          $xml = [xml](Get-Content $projPath)
+          $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+          $ns.AddNamespace("ns", $xml.DocumentElement.NamespaceURI)
 
-      - name: Copy launcher to Appx directory
-        run: Copy-Item "DistroLauncher\x64\$env:CONFIGURATION\launcher.exe" -Destination "DistroLauncher\DistroLauncher-Appx\"
+          $newGroup = $xml.CreateElement("PropertyGroup", $xml.DocumentElement.NamespaceURI)
+          $certFile = $xml.CreateElement("PackageCertificateKeyFile", $xml.DocumentElement.NamespaceURI)
+          $certFile.InnerText = "Zenora.pfx"
+          $certPass = $xml.CreateElement("PackageCertificatePassword", $xml.DocumentElement.NamespaceURI)
+          $certPass.InnerText = $env:CERT_PASSWORD
+          $newGroup.AppendChild($certFile)
+          $newGroup.AppendChild($certPass)
+          $xml.DocumentElement.AppendChild($newGroup)
+          $xml.Save($projPath)
 
-      - name: Stage Appx files
+      - name: Build Launcher
+        shell: cmd
+        run: |
+          cd DistroLauncher
+          msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: Package .appx manually
+        shell: pwsh
         run: |
           mkdir AppxStage
-          Copy-Item -Recurse "DistroLauncher\DistroLauncher-Appx\*" AppxStage
+          Copy-Item "DistroLauncher/DistroLauncher-Appx/*" -Recurse -Destination AppxStage
+          Copy-Item "DistroLauncher/x64/Release/launcher.exe" AppxStage
 
-      - name: Generate PRI file
-        run: |
           makepri new /ProjectRoot AppxStage /ConfigXml AppxStage\AppxManifest.xml /OutputFile AppxStage\resources.pri
-
-      - name: Build .appx
-        run: |
           makeappx pack /d AppxStage /p Zenora.appx
 
-      - name: Upload Appx
+      - name: Upload .appx file
         uses: actions/upload-artifact@v4
         with:
           name: zenora-appx
           path: Zenora.appx
+
