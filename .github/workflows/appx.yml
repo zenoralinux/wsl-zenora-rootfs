@@ -22,7 +22,7 @@ jobs:
 
       - name: Clone WSL-DistroLauncher
         run: |
-          git clone https://github.com/zenoralinux/wsl-distro-laucnher.git
+          git clone https://github.com/microsoft/WSL-DistroLauncher.git
           Rename-Item -Path "WSL-DistroLauncher" -NewName "DistroLauncher"
 
       - name: Prepare Appx directory and download rootfs
