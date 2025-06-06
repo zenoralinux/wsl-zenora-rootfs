@@ -12,6 +12,7 @@ jobs:
       EXE_NAME: launcher.exe
       CONFIGURATION: Release
       ROOTFS_URL: https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz
+      CERT_PASSWORD: 1234
 
     steps:
       - name: Checkout this repo (for custom assets)
@@ -41,17 +42,19 @@ jobs:
             New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx\assets" -Force
             Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
           }
+
       - name: Retarget Windows SDK to available version
         shell: pwsh
         run: |
           $sdkVersion = '10.0.19041.0'
           $projects = @(
-          "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
-          "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
-           )
-           foreach ($proj in $projects) {
-           (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
-             }
+            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          )
+          foreach ($proj in $projects) {
+            (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
+          }
+
       - name: Patch PlatformToolset from v141 to v143
         shell: pwsh
         run: |
@@ -62,6 +65,29 @@ jobs:
           foreach ($proj in $projects) {
             (Get-Content $proj) -replace 'v141', 'v143' | Set-Content $proj
           }
+
+      - name: Inject certificate settings into project
+        shell: pwsh
+        run: |
+          $vcxproj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          $content = Get-Content $vcxproj
+          $injection = @"
+  <PropertyGroup>
+    <PackageCertificateKeyFile>Zenora_TemporaryKey.pfx</PackageCertificateKeyFile>
+    <PackageCertificatePassword>$env:CERT_PASSWORD</PackageCertificatePassword>
+  </PropertyGroup>
+"@
+          if ($content -notmatch "PackageCertificateKeyFile") {
+            $content = $content -replace '(?<=</Import>)', "`n$injection"
+            $content | Set-Content $vcxproj
+          }
+
+      - name: Generate temporary signing certificate
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Zenora" -CertStoreLocation "Cert:\CurrentUser\My"
+          $securePassword = ConvertTo-SecureString -String "$env:CERT_PASSWORD" -Force -AsPlainText
+          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher\DistroLauncher-Appx\Zenora_TemporaryKey.pfx" -Password $securePassword
 
       - name: Build launcher.exe
         shell: pwsh
