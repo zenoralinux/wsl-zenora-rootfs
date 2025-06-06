@@ -69,15 +69,23 @@ jobs:
           $xml.DocumentElement.AppendChild($propertyGroup)
           $xml.Save($projPath)
 
-      - name: Build the appx with detailed log
+      - name: Build the appx
         shell: cmd
         run: |
           cd DistroLauncher
-          msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64 /verbosity:detailed > build.log 2>&1
-          type build.log
+          msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
 
-      - name: Upload .appx
+      - name: Upload .appx as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: zenora-appx
           path: DistroLauncher/x64/Release/DistroLauncher-Appx/*.appx
+
+      - name: Create GitHub Release and Upload .appx
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: Zenora Release - Run ${{ github.run_number }}
+          files: DistroLauncher/x64/Release/DistroLauncher-Appx/*.appx
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
