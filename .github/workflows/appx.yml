@@ -18,8 +18,9 @@ jobs:
     - name: Set up MSBuild
       uses: microsoft/setup-msbuild@v1.3.1
 
-    - name: Download rootfs from GitHub Release
+    - name: Create folder and download rootfs
       run: |
+        New-Item -ItemType Directory -Force -Path "DistroLauncher\x64"
         Invoke-WebRequest -Uri "https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz" -OutFile "DistroLauncher\x64\install.tar.gz"
 
     - name: Restore NuGet packages
@@ -33,3 +34,4 @@ jobs:
       with:
         name: zenora-wsl-appx
         path: DistroLauncher\DistroLauncher-Appx\x64\Release\DistroLauncher-Appx.appx
+
