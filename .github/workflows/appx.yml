@@ -75,6 +75,11 @@ jobs:
           cd DistroLauncher
           msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
 
+      - name: List all files and folders
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse DistroLauncher | Select-Object FullName
+
       - name: Upload .appx
         uses: actions/upload-artifact@v4
         with:
