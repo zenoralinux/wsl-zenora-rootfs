@@ -29,6 +29,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx" -Force
           Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\DistroLauncher-Appx\install.tar.gz"
+          New-Item -ItemType Directory -Path "DistroLauncher\x64" -Force
           Copy-Item "DistroLauncher\DistroLauncher-Appx\install.tar.gz" -Destination "DistroLauncher\x64\install.tar.gz"
 
       - name: Copy custom AppxManifest and logo if exist
