@@ -69,12 +69,11 @@ jobs:
           $xml.DocumentElement.AppendChild($propertyGroup)
           $xml.Save($projPath)
 
-      - name: Build the appx with detailed log
+      - name: Build the appx
         shell: cmd
         run: |
           cd DistroLauncher
-          msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64 /verbosity:detailed > build.log 2>&1
-          type build.log
+          msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
 
       - name: Upload .appx
         uses: actions/upload-artifact@v4
