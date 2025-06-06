@@ -50,6 +50,16 @@ jobs:
            foreach ($proj in $projects) {
            (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
              }
+      - name: Patch PlatformToolset from v141 to v143
+        shell: pwsh
+        run: |
+          $projects = @(
+            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          )
+          foreach ($proj in $projects) {
+            (Get-Content $proj) -replace 'v141', 'v143' | Set-Content $proj
+          }
 
       - name: Build launcher.exe
         shell: pwsh
