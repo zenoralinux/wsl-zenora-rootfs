@@ -69,13 +69,22 @@ jobs:
           $xml.DocumentElement.AppendChild($propertyGroup)
           $xml.Save($projPath)
 
-
-      - name: Build the appx
+      - name: Build DistroLauncher binary
         shell: cmd
         run: |
-             cd DistroLauncher
-              msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
-              dir /s /b
+          cd DistroLauncher
+          msbuild DistroLauncher\DistroLauncher.vcxproj /p:Configuration=Release /p:Platform=x64
+
+      - name: Copy launcher.exe to Appx folder
+        shell: pwsh
+        run: |
+          Copy-Item "DistroLauncher/x64/Release/DistroLauncher.exe" "DistroLauncher/x64/Release/DistroLauncher-Appx/launcher.exe" -Force
+
+      - name: Build Appx package
+        shell: cmd
+        run: |
+          cd DistroLauncher
+          msbuild DistroLauncher-Appx\DistroLauncher-Appx.vcxproj /p:Configuration=Release /p:Platform=x64
 
       - name: Upload .appx
         uses: actions/upload-artifact@v4
