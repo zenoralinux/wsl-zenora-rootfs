@@ -24,15 +24,15 @@ jobs:
         shell: pwsh
         run: |
           git clone https://github.com/zenoralinux/WSL-DistroLauncher.git DistroLauncher
-          New-Item -ItemType Directory -Force -Path "DistroLauncher/x64"
-          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher/x64/install.tar.gz"
+          New-Item -ItemType Directory -Force -Path "DistroLauncher\DistroLauncher\x64"
+          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\DistroLauncher\x64\install.tar.gz"
 
       - name: Patch toolset and SDK version
         shell: pwsh
         run: |
           $projects = @(
-            "DistroLauncher/DistroLauncher/DistroLauncher.vcxproj",
-            "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
+            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
           )
           foreach ($proj in $projects) {
             (Get-Content $proj) -replace 'v141', 'v143' -replace '10\.0\.16299\.0', '10.0.19041.0' | Set-Content $proj
@@ -41,7 +41,7 @@ jobs:
       - name: Remove thumbprint references
         shell: pwsh
         run: |
-          $proj = "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
+          $proj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
           (Get-Content $proj) | Where-Object { $_ -notmatch 'PackageCertificateThumbprint' } | Set-Content $proj
 
       - name: Generate and export signing certificate
@@ -49,12 +49,12 @@ jobs:
         run: |
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Zenora" -CertStoreLocation "Cert:\CurrentUser\My"
           $secure = ConvertTo-SecureString -String $env:CERT_PASSWORD -AsPlainText -Force
-          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher/DistroLauncher-Appx/Zenora.pfx" -Password $secure
+          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher\DistroLauncher-Appx\Zenora.pfx" -Password $secure
 
       - name: Inject signing info to vcxproj
         shell: pwsh
         run: |
-          $projPath = "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
+          $projPath = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
           [xml]$xml = Get-Content $projPath
           $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
           $ns.AddNamespace("ns", $xml.DocumentElement.NamespaceURI)
@@ -69,25 +69,32 @@ jobs:
           $xml.DocumentElement.AppendChild($propertyGroup)
           $xml.Save($projPath)
 
-      - name: Build DistroLauncher binary
+      - name: Build the DistroLauncher solution
         shell: cmd
         run: |
-          cd DistroLauncher
-          msbuild DistroLauncher\DistroLauncher.vcxproj /p:Configuration=Release /p:Platform=x64
+          cd DistroLauncher\DistroLauncher
+          msbuild DistroLauncher.vcxproj /p:Configuration=Release /p:Platform=x64
+          dir x64\Release
+
+      - name: Create destination directory for launcher.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx"
 
       - name: Copy launcher.exe to Appx folder
         shell: pwsh
         run: |
-          Copy-Item "DistroLauncher/x64/Release/DistroLauncher.exe" "DistroLauncher/x64/Release/DistroLauncher-Appx/launcher.exe" -Force
-          Get-ChildItem -Recurse | Select-Object FullName
-      - name: Build Appx package
+          Copy-Item "DistroLauncher\DistroLauncher\x64\Release\launcher.exe" "DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx\launcher.exe" -Force
+
+      - name: Build the Appx package
         shell: cmd
         run: |
-          cd DistroLauncher
+          cd DistroLauncher\DistroLauncher
           msbuild DistroLauncher-Appx\DistroLauncher-Appx.vcxproj /p:Configuration=Release /p:Platform=x64
+          dir x64\Release\DistroLauncher-Appx
 
       - name: Upload .appx
         uses: actions/upload-artifact@v4
         with:
           name: zenora-appx
-          path: DistroLauncher/x64/Release/DistroLauncher-Appx/*.appx
+          path: DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx\*.appx
