@@ -23,7 +23,7 @@ jobs:
       - name: Download and prepare DistroLauncher
         shell: pwsh
         run: |
-          git clone https://github.com/microsoft/WSL-DistroLauncher.git DistroLauncher
+          git clone https://github.com/zenoralinux/WSL-DistroLauncher.git DistroLauncher
           New-Item -ItemType Directory -Force -Path "DistroLauncher/x64"
           Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher/x64/install.tar.gz"
 
