@@ -84,6 +84,15 @@ jobs:
         run: |
           makeappx pack /d AppxStage /p Zenora.appx
 
+      - name: Restore certificate for signing
+        run: |
+           $certBytes = [System.Convert]::FromBase64String("${{ secrets.CERT_PFX_BASE64 }}")
+            [IO.File]::WriteAllBytes("ZenoraWSL.pfx", $certBytes)
+
+      - name: Sign .appx
+        run: |
+           signtool sign /fd SHA256 /a /f ZenoraWSL.pfx /p "${{ secrets.CERT_PASSWORD }}" Zenora.appx
+
       - name: Upload Appx
         uses: actions/upload-artifact@v4
         with:
