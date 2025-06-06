@@ -41,17 +41,19 @@ jobs:
             New-Item -ItemType Directory -Path "DistroLauncher\DistroLauncher-Appx\assets" -Force
             Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
           }
+
       - name: Retarget Windows SDK to available version
         shell: pwsh
         run: |
           $sdkVersion = '10.0.19041.0'
           $projects = @(
-          "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
-          "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
-           )
-           foreach ($proj in $projects) {
-           (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
-             }
+            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          )
+          foreach ($proj in $projects) {
+            (Get-Content $proj) -replace '10\.0\.16299\.0', $sdkVersion | Set-Content $proj
+          }
+
       - name: Patch PlatformToolset from v141 to v143
         shell: pwsh
         run: |
@@ -62,6 +64,15 @@ jobs:
           foreach ($proj in $projects) {
             (Get-Content $proj) -replace 'v141', 'v143' | Set-Content $proj
           }
+
+      - name: Patch certificate path in vcxproj
+        shell: pwsh
+        run: |
+          $vcxproj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          (Get-Content $vcxproj) -replace '<PackageCertificateThumbprint>.*?</PackageCertificateThumbprint>', '' |
+            ForEach-Object {
+              $_ -replace '</PropertyGroup>', '  <PackageCertificateKeyFile>ZenoraWSL.pfx</PackageCertificateKeyFile>`n</PropertyGroup>'
+            } | Set-Content $vcxproj
 
       - name: Build launcher.exe
         shell: pwsh
@@ -86,12 +97,12 @@ jobs:
 
       - name: Restore certificate for signing
         run: |
-           $certBytes = [System.Convert]::FromBase64String("${{ secrets.CERT_PFX_BASE64 }}")
-            [IO.File]::WriteAllBytes("ZenoraWSL.pfx", $certBytes)
+          $certBytes = [System.Convert]::FromBase64String("${{ secrets.CERT_PFX_BASE64 }}")
+          [IO.File]::WriteAllBytes("ZenoraWSL.pfx", $certBytes)
 
       - name: Sign .appx
         run: |
-           signtool sign /fd SHA256 /a /f ZenoraWSL.pfx /p "${{ secrets.CERT_PASSWORD }}" Zenora.appx
+          signtool sign /fd SHA256 /a /f ZenoraWSL.pfx /p "${{ secrets.CERT_PASSWORD }}" Zenora.appx
 
       - name: Upload Appx
         uses: actions/upload-artifact@v4
