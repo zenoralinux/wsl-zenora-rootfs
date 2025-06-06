@@ -73,9 +73,9 @@ jobs:
       - name: Build the appx
         shell: cmd
         run: |
-          cd DistroLauncher
-          msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
-          Get-ChildItem -Recurse DistroLauncher | Select-Object FullName
+             cd DistroLauncher
+              msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
+              dir /s /b
 
       - name: Upload .appx
         uses: actions/upload-artifact@v4
