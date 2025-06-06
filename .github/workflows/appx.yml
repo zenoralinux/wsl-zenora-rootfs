@@ -79,7 +79,7 @@ jobs:
         shell: pwsh
         run: |
           Copy-Item "DistroLauncher/x64/Release/DistroLauncher.exe" "DistroLauncher/x64/Release/DistroLauncher-Appx/launcher.exe" -Force
-
+          Get-ChildItem -Recurse | Select-Object FullName
       - name: Build Appx package
         shell: cmd
         run: |
