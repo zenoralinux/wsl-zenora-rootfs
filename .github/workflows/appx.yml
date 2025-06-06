@@ -20,13 +20,13 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.3.1
 
-      - name: Download and prepare WSL DistroLauncher
+      - name: Download and prepare DistroLauncher
         shell: pwsh
         run: |
           git clone https://github.com/microsoft/WSL-DistroLauncher.git DistroLauncher
           Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher/DistroLauncher-Appx/install.tar.gz"
 
-      - name: Patch project files for toolset and SDK
+      - name: Patch toolset and SDK version
         shell: pwsh
         run: |
           $projects = @(
@@ -37,50 +37,45 @@ jobs:
             (Get-Content $proj) -replace 'v141', 'v143' -replace '10\.0\.16299\.0', '10.0.19041.0' | Set-Content $proj
           }
 
-      - name: Generate temporary signing certificate
+      - name: Remove thumbprint references
+        shell: pwsh
+        run: |
+          $proj = "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
+          (Get-Content $proj) | Where-Object { $_ -notmatch 'PackageCertificateThumbprint' } | Set-Content $proj
+
+      - name: Generate and export signing certificate
         shell: pwsh
         run: |
           $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Zenora" -CertStoreLocation "Cert:\CurrentUser\My"
           $secure = ConvertTo-SecureString -String $env:CERT_PASSWORD -AsPlainText -Force
           Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher/DistroLauncher-Appx/Zenora.pfx" -Password $secure
 
-      - name: Inject signing config into project file
+      - name: Inject signing info to vcxproj
         shell: pwsh
         run: |
           $projPath = "DistroLauncher/DistroLauncher-Appx/DistroLauncher-Appx.vcxproj"
-          $xml = [xml](Get-Content $projPath)
+          [xml]$xml = Get-Content $projPath
           $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
           $ns.AddNamespace("ns", $xml.DocumentElement.NamespaceURI)
 
-          $newGroup = $xml.CreateElement("PropertyGroup", $xml.DocumentElement.NamespaceURI)
-          $certFile = $xml.CreateElement("PackageCertificateKeyFile", $xml.DocumentElement.NamespaceURI)
-          $certFile.InnerText = "Zenora.pfx"
-          $certPass = $xml.CreateElement("PackageCertificatePassword", $xml.DocumentElement.NamespaceURI)
-          $certPass.InnerText = $env:CERT_PASSWORD
-          $newGroup.AppendChild($certFile)
-          $newGroup.AppendChild($certPass)
-          $xml.DocumentElement.AppendChild($newGroup)
+          $propertyGroup = $xml.CreateElement("PropertyGroup", $xml.DocumentElement.NamespaceURI)
+          $keyFile = $xml.CreateElement("PackageCertificateKeyFile", $xml.DocumentElement.NamespaceURI)
+          $keyFile.InnerText = "Zenora.pfx"
+          $keyPassword = $xml.CreateElement("PackageCertificatePassword", $xml.DocumentElement.NamespaceURI)
+          $keyPassword.InnerText = $env:CERT_PASSWORD
+          $propertyGroup.AppendChild($keyFile)
+          $propertyGroup.AppendChild($keyPassword)
+          $xml.DocumentElement.AppendChild($propertyGroup)
           $xml.Save($projPath)
 
-      - name: Build Launcher
+      - name: Build the appx
         shell: cmd
         run: |
           cd DistroLauncher
           msbuild DistroLauncher.sln /p:Configuration=Release /p:Platform=x64
 
-      - name: Package .appx manually
-        shell: pwsh
-        run: |
-          mkdir AppxStage
-          Copy-Item "DistroLauncher/DistroLauncher-Appx/*" -Recurse -Destination AppxStage
-          Copy-Item "DistroLauncher/x64/Release/launcher.exe" AppxStage
-
-          makepri new /ProjectRoot AppxStage /ConfigXml AppxStage\AppxManifest.xml /OutputFile AppxStage\resources.pri
-          makeappx pack /d AppxStage /p Zenora.appx
-
-      - name: Upload .appx file
+      - name: Upload .appx
         uses: actions/upload-artifact@v4
         with:
           name: zenora-appx
-          path: Zenora.appx
-
+          path: DistroLauncher/x64/Release/DistroLauncher-Appx/*.appx
