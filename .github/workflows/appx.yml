@@ -70,9 +70,9 @@ jobs:
         run: |
           $vcxproj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
           (Get-Content $vcxproj) -replace '<PackageCertificateThumbprint>.*?</PackageCertificateThumbprint>', '' |
-            ForEach-Object {
-              $_ -replace '</PropertyGroup>', '  <PackageCertificateKeyFile>ZenoraWSL.pfx</PackageCertificateKeyFile>`n</PropertyGroup>'
-            } | Set-Content $vcxproj
+          ForEach-Object {
+          $_ -replace '</PropertyGroup>', '  <PackageCertificateKeyFile>ZenoraWSL.pfx</PackageCertificateKeyFile>`n</PropertyGroup>'
+          } | Set-Content $vcxproj
 
       - name: Build launcher.exe
         shell: pwsh
