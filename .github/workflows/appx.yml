@@ -90,4 +90,3 @@ jobs:
         path: |
           ${{ env.LAUNCHER_DIR }}\${{ env.DISTRO_NAME }}.appx
           rootfs.tar.gz
-
