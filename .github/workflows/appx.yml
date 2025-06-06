@@ -24,8 +24,7 @@ jobs:
         shell: pwsh
         run: |
           git clone https://github.com/microsoft/WSL-DistroLauncher.git DistroLauncher
-          New-Item -ItemType Directory -Force -Path "DistroLauncher\x64" | Out-Null
-          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\x64\install.tar.gz"
+          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher/DistroLauncher-Appx/install.tar.gz"
 
       - name: Patch toolset and SDK version
         shell: pwsh
