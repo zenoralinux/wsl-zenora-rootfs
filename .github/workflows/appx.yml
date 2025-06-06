@@ -42,6 +42,11 @@ jobs:
             Copy-Item "logo.png" -Destination "DistroLauncher\DistroLauncher-Appx\assets\logo.png" -Force
           }
 
+      - name: Restore certificate for signing (before build)
+        run: |
+          $certBytes = [System.Convert]::FromBase64String("${{ secrets.CERT_PFX_BASE64 }}")
+          [IO.File]::WriteAllBytes("DistroLauncher\DistroLauncher-Appx\ZenoraWSL.pfx", $certBytes)
+
       - name: Retarget Windows SDK to available version
         shell: pwsh
         run: |
@@ -71,7 +76,7 @@ jobs:
           $vcxproj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
           (Get-Content $vcxproj) -replace '<PackageCertificateThumbprint>.*?</PackageCertificateThumbprint>', '' |
           ForEach-Object {
-          $_ -replace '</PropertyGroup>', '  <PackageCertificateKeyFile>ZenoraWSL.pfx</PackageCertificateKeyFile>`n</PropertyGroup>'
+            $_ -replace '</PropertyGroup>', '  <PackageCertificateKeyFile>ZenoraWSL.pfx</PackageCertificateKeyFile>`n</PropertyGroup>'
           } | Set-Content $vcxproj
 
       - name: Build launcher.exe
@@ -95,14 +100,9 @@ jobs:
         run: |
           makeappx pack /d AppxStage /p Zenora.appx
 
-      - name: Restore certificate for signing
-        run: |
-          $certBytes = [System.Convert]::FromBase64String("${{ secrets.CERT_PFX_BASE64 }}")
-          [IO.File]::WriteAllBytes("ZenoraWSL.pfx", $certBytes)
-
       - name: Sign .appx
         run: |
-          signtool sign /fd SHA256 /a /f ZenoraWSL.pfx /p "${{ secrets.CERT_PASSWORD }}" Zenora.appx
+          signtool sign /fd SHA256 /a /f DistroLauncher\DistroLauncher-Appx\ZenoraWSL.pfx /p "${{ secrets.CERT_PASSWORD }}" Zenora.appx
 
       - name: Upload Appx
         uses: actions/upload-artifact@v4
