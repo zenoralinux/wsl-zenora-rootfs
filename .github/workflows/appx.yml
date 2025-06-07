@@ -96,5 +96,12 @@ jobs:
       - name: Upload .appx
         uses: actions/upload-artifact@v4
         with:
-            name: zenora-appx
-            path: DistroLauncher\DistroLauncher-Appx\x64\Release\*.appx
+          name: zenora-appx
+          path: DistroLauncher\DistroLauncher-Appx\x64\Release\*.appx
+
+      - name: Upload all build directories on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-build-dump
+          path: DistroLauncher
