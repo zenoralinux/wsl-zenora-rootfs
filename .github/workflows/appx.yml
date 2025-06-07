@@ -92,16 +92,17 @@ jobs:
          cd DistroLauncher\DistroLauncher
           msbuild DistroLauncher-Appx\DistroLauncher-Appx.vcxproj /p:Configuration=Release /p:Platform=x64
           dir x64\Release\DistroLauncher-Appx
-
-      - name: Upload .appx
-        uses: actions/upload-artifact@v4
-        with:
-          name: zenora-appx
-          path: DistroLauncher\DistroLauncher-Appx\x64\Release\*.appx
-
       - name: Upload all build directories on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: full-build-dump
           path: DistroLauncher
+          
+      - name: Upload .appx
+        uses: actions/upload-artifact@v4
+        with:
+          name: zenora-appx
+          path: DistroLauncher\DistroLauncher-Appx\x64\Release\*.appx
+
+
