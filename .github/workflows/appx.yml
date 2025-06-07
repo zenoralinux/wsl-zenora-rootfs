@@ -20,12 +20,6 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.3.1
 
-      - name: Download and prepare DistroLauncher
-        shell: pwsh
-        run: |
-          git clone https://github.com/zenoralinux/WSL-DistroLauncher.git DistroLauncher
-          New-Item -ItemType Directory -Force -Path "DistroLauncher\DistroLauncher\x64"
-          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\DistroLauncher\x64\install.tar.gz"
 
       - name: Patch toolset and SDK version
         shell: pwsh
@@ -43,31 +37,6 @@ jobs:
         run: |
           $proj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
           (Get-Content $proj) | Where-Object { $_ -notmatch 'PackageCertificateThumbprint' } | Set-Content $proj
-
-      - name: Generate and export signing certificate
-        shell: pwsh
-        run: |
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Zenora" -CertStoreLocation "Cert:\CurrentUser\My"
-          $secure = ConvertTo-SecureString -String $env:CERT_PASSWORD -AsPlainText -Force
-          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher\DistroLauncher-Appx\Zenora.pfx" -Password $secure
-
-      - name: Inject signing info to vcxproj
-        shell: pwsh
-        run: |
-          $projPath = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
-          [xml]$xml = Get-Content $projPath
-          $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
-          $ns.AddNamespace("ns", $xml.DocumentElement.NamespaceURI)
-
-          $propertyGroup = $xml.CreateElement("PropertyGroup", $xml.DocumentElement.NamespaceURI)
-          $keyFile = $xml.CreateElement("PackageCertificateKeyFile", $xml.DocumentElement.NamespaceURI)
-          $keyFile.InnerText = "Zenora.pfx"
-          $keyPassword = $xml.CreateElement("PackageCertificatePassword", $xml.DocumentElement.NamespaceURI)
-          $keyPassword.InnerText = $env:CERT_PASSWORD
-          $propertyGroup.AppendChild($keyFile)
-          $propertyGroup.AppendChild($keyPassword)
-          $xml.DocumentElement.AppendChild($propertyGroup)
-          $xml.Save($projPath)
 
       - name: Build the DistroLauncher solution
         shell: cmd
