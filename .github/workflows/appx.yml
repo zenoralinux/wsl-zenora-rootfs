@@ -1,40 +1,93 @@
-name: Build Zenora WSL
+name: Build Zenora WSL Appx
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
 
+    env:
+      DISTRO_NAME: Zenora
+      CONFIGURATION: Release
+      ROOTFS_URL: https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz
+      CERT_PASSWORD: 1234
+
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout this repo
+        uses: actions/checkout@v3
 
-    - name: Setup MSBuild
-      uses: microsoft/setup-msbuild@v1.3.1
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.3.1
 
-    - name: Build launcher.exe
-      run: msbuild DistroLauncher\DistroLauncher\DistroLauncher.vcxproj /p:Configuration=Release /p:Platform=x64
+      - name: Download and prepare DistroLauncher
+        shell: pwsh
+        run: |
+          git clone https://github.com/zenoralinux/WSL-DistroLauncher.git DistroLauncher
+          New-Item -ItemType Directory -Force -Path "DistroLauncher\DistroLauncher\x64"
+          Invoke-WebRequest -Uri "$env:ROOTFS_URL" -OutFile "DistroLauncher\DistroLauncher\x64\install.tar.gz"
 
-    - name: Upload launcher.exe only
-      uses: actions/upload-artifact@v4
-      with:
-        name: zenora-launcher-exe
-        path: DistroLauncher\DistroLauncher\x64\Release\launcher.exe
+      - name: Patch toolset and SDK version
+        shell: pwsh
+        run: |
+          $projects = @(
+            "DistroLauncher\DistroLauncher\DistroLauncher.vcxproj",
+            "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          )
+          foreach ($proj in $projects) {
+            (Get-Content $proj) -replace 'v141', 'v143' -replace '10\.0\.16299\.0', '10.0.19041.0' | Set-Content $proj
+          }
 
-    - name: Create zip with launcher + rootfs
-      shell: pwsh
-      run: |
-        Compress-Archive -Path `
-          DistroLauncher\DistroLauncher\x64\Release\launcher.exe, `
-          DistroLauncher\DistroLauncher\x64\install.tar.gz `
-          -DestinationPath zenora-launcher-rootfs.zip
+      - name: Remove thumbprint references
+        shell: pwsh
+        run: |
+          $proj = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          (Get-Content $proj) | Where-Object { $_ -notmatch 'PackageCertificateThumbprint' } | Set-Content $proj
 
-    - name: Upload launcher + rootfs zip
-      uses: actions/upload-artifact@v4
-      with:
-        name: zenora-launcher-rootfs-zip
-        path: zenora-launcher-rootfs.zip
+      - name: Generate and export signing certificate
+        shell: pwsh
+        run: |
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Zenora" -CertStoreLocation "Cert:\CurrentUser\My"
+          $secure = ConvertTo-SecureString -String $env:CERT_PASSWORD -AsPlainText -Force
+          Export-PfxCertificate -Cert $cert -FilePath "DistroLauncher\DistroLauncher-Appx\Zenora.pfx" -Password $secure
+
+      - name: Inject signing info to vcxproj
+        shell: pwsh
+        run: |
+          $projPath = "DistroLauncher\DistroLauncher-Appx\DistroLauncher-Appx.vcxproj"
+          [xml]$xml = Get-Content $projPath
+          $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+          $ns.AddNamespace("ns", $xml.DocumentElement.NamespaceURI)
+
+          $propertyGroup = $xml.CreateElement("PropertyGroup", $xml.DocumentElement.NamespaceURI)
+          $keyFile = $xml.CreateElement("PackageCertificateKeyFile", $xml.DocumentElement.NamespaceURI)
+          $keyFile.InnerText = "Zenora.pfx"
+          $keyPassword = $xml.CreateElement("PackageCertificatePassword", $xml.DocumentElement.NamespaceURI)
+          $keyPassword.InnerText = $env:CERT_PASSWORD
+          $propertyGroup.AppendChild($keyFile)
+          $propertyGroup.AppendChild($keyPassword)
+          $xml.DocumentElement.AppendChild($propertyGroup)
+          $xml.Save($projPath)
+
+      - name: Build the DistroLauncher solution
+        shell: cmd
+        run: |
+          cd DistroLauncher\DistroLauncher
+          msbuild DistroLauncher.vcxproj /p:Configuration=Release /p:Platform=x64
+          dir x64\Release
+
+      - name: Create destination directory for launcher.exe
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx"
+
+      - name: Copy launcher.exe to Appx folder
+        shell: pwsh
+        run: |
+          Copy-Item "DistroLauncher\DistroLauncher\x64\Release\launcher.exe" "DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx\launcher.exe" -Force
+
+      - name: Upload launcher.exe artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: launcher-exe
+          path: DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx\launcher.exe
