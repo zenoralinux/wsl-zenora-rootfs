@@ -10,8 +10,6 @@ jobs:
     env:
       DISTRO_NAME: Zenora
       CONFIGURATION: Release
-      ROOTFS_URL: https://github.com/zenoralinux/wsl-zenora-rootfs/releases/download/20250603-0835/zenora-wsl-rootfs.tar.gz
-      CERT_PASSWORD: 1234
 
     steps:
       - name: Checkout this repo
@@ -20,6 +18,11 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.3.1
 
+      - name: Download and prepare DistroLauncher
+        shell: pwsh
+        run: |
+          git clone https://github.com/zenoralinux/WSL-DistroLauncher.git DistroLauncher
+          New-Item -ItemType Directory -Force -Path "DistroLauncher\DistroLauncher\x64"
 
       - name: Patch toolset and SDK version
         shell: pwsh
