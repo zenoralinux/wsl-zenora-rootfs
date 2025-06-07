@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout this repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v1.3.1
@@ -87,7 +87,7 @@ jobs:
           Copy-Item "DistroLauncher\DistroLauncher\x64\Release\launcher.exe" "DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx\launcher.exe" -Force
 
       - name: Upload launcher.exe artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: launcher-exe
           path: DistroLauncher\DistroLauncher\x64\Release\DistroLauncher-Appx\launcher.exe
