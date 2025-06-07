@@ -89,6 +89,7 @@ jobs:
       - name: Build the Appx package
         shell: cmd
         run: |
+         cd DistroLauncher\DistroLauncher
           msbuild DistroLauncher-Appx\DistroLauncher-Appx.vcxproj /p:Configuration=Release /p:Platform=x64
           dir x64\Release\DistroLauncher-Appx
 
