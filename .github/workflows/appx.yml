@@ -34,7 +34,7 @@ jobs:
           -DestinationPath zenora-launcher-rootfs.zip
 
     - name: Upload launcher + rootfs zip
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: zenora-launcher-rootfs-zip
         path: 'DistroLauncher\DistroLauncher\x64\Release\launcher.exe'
