@@ -92,6 +92,7 @@ jobs:
           cd DistroLauncher\DistroLauncher
           msbuild DistroLauncher-Appx\DistroLauncher-Appx.vcxproj /p:Configuration=Release /p:Platform=x64
           dir x64\Release\DistroLauncher-Appx
+          dir /s DistroLauncher
 
       - name: Upload .appx
         uses: actions/upload-artifact@v4
