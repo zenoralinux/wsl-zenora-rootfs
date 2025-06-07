@@ -20,7 +20,7 @@ jobs:
       run: msbuild DistroLauncher\DistroLauncher\DistroLauncher.vcxproj /p:Configuration=Release /p:Platform=x64
 
     - name: Upload launcher.exe only
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: zenora-launcher-exe
         path: DistroLauncher\DistroLauncher\x64\Release\launcher.exe
@@ -37,4 +37,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: zenora-launcher-rootfs-zip
-        path: 'DistroLauncher\DistroLauncher\x64\Release\launcher.exe'
+        path: zenora-launcher-rootfs.zip
